@@ -1,113 +1,15 @@
 #!/bin/bash
 
-# Telegram 群组监控转发工具安装脚本
-
-# 作者: 沙龙新加坡
-
-# 设置颜色
-
-GREEN=’\033[0;32m’
-YELLOW=’\033[1;33m’
-RED=’\033[0;31m’
-BLUE=’\033[0;34m’
-NC=’\033[0m’ # 恢复默认颜色
-
-# 检查是否为 root 用户运行
-
-if [ “$EUID” -ne 0 ]; then
-echo -e “${RED}请使用 root 权限运行此脚本${NC}”
-echo “例如: sudo bash $0”
-exit 1
-fi
-
-echo -e “${BLUE}====================================${NC}”
-echo -e “${BLUE}  Telegram 群组监控转发工具安装器  ${NC}”
-echo -e “${BLUE}====================================${NC}”
-echo “”
+# 简化版 Telegram 群组监控转发工具安装脚本
 
 # 创建工作目录
 
-WORK_DIR=”/opt/telegram-monitor”
-echo -e “${YELLOW}创建工作目录: $WORK_DIR${NC}”
-mkdir -p $WORK_DIR
-cd $WORK_DIR
+mkdir -p /opt/telegram-monitor
+cd /opt/telegram-monitor
 
-# 安装依赖
+# 创建 channel_forwarder.py 文件
 
-echo -e “${YELLOW}安装系统依赖…${NC}”
-apt update
-apt install -y python3-pip
-
-echo -e “${YELLOW}安装 Python 依赖…${NC}”
-pip3 install –upgrade telethon python-telegram-bot
-
-# 创建 README.md
-
-echo -e “${YELLOW}创建 README.md${NC}”
-cat > $WORK_DIR/README.md << ‘EOF’
-
-# Telegram 群组监控转发工具
-
-这是一个基于 Telethon 和 Python-Telegram-Bot 的 Telegram 群组监控和消息转发工具。它能够监控指定的群组或频道，根据关键词过滤消息，并将匹配的消息转发到指定目标。
-
-## 功能特点
-
-- 监控多个群组和频道
-- 基于关键词过滤消息
-- 支持多个转发目标
-- 提供 Telegram Bot 管理界面
-- 用户权限白名单控制
-- 系统服务自动启动
-
-## 使用说明
-
-### Bot 命令
-
-- `/addkw <关键词>` - 添加关键词
-- `/delkw <关键词>` - 删除关键词
-- `/addgroup <群组ID>` - 添加转发目标
-- `/delgroup <群组ID>` - 删除目标
-- `/addwatch <群组ID或用户名>` - 添加监听群组
-- `/delwatch <群组ID或用户名>` - 删除监听群组
-- `/allow <用户ID>` - 添加白名单（仅OWNER）
-- `/unallow <用户ID>` - 移除白名单（仅OWNER）
-- `/show` - 显示当前配置
-- `/help` - 帮助菜单
-
-## 注意事项
-
-- 首次运行需要进行 Telegram 登录认证
-- 使用个人账号进行自动化操作需谨慎，避免频繁操作导致账号被限制
-- 确保配置文件中的白名单至少包含一个管理员ID
-  EOF
-
-# 创建 requirements.txt
-
-echo -e “${YELLOW}创建 requirements.txt${NC}”
-cat > $WORK_DIR/requirements.txt << ‘EOF’
-telethon>=1.29.2
-python-telegram-bot>=20.0
-EOF
-
-# 创建配置文件模板
-
-echo -e “${YELLOW}创建配置文件模板…${NC}”
-cat > $WORK_DIR/config.example.json << ‘EOF’
-{
-“api_id”: “YOUR_API_ID”,
-“api_hash”: “YOUR_API_HASH”,
-“bot_token”: “YOUR_BOT_TOKEN”,
-“target_ids”: [-1002243984935, 165067365],
-“keywords”: [“example”, “keyword1”, “keyword2”],
-“watch_ids”: [“channelname”, “groupname”],
-“whitelist”: [123456789]
-}
-EOF
-
-# 创建 channel_forwarder.py
-
-echo -e “${YELLOW}创建 channel_forwarder.py${NC}”
-cat > $WORK_DIR/channel_forwarder.py << ‘EOF’
+cat > /opt/telegram-monitor/channel_forwarder.py << ‘EOF’
 #!/usr/bin/env python3
 from telethon import TelegramClient, events
 from datetime import datetime
@@ -122,11 +24,11 @@ try:
 with open(CONFIG_FILE, ‘r’) as f:
 return json.load(f)
 except FileNotFoundError:
-print(f”错误: 未找到配置文件 {CONFIG_FILE}”)
+print(“错误: 未找到配置文件 “ + CONFIG_FILE)
 print(“请从 config.example.json 复制一份并填写相关信息”)
 sys.exit(1)
 except json.JSONDecodeError:
-print(f”错误: 配置文件 {CONFIG_FILE} 格式不正确”)
+print(“错误: 配置文件 “ + CONFIG_FILE + “ 格式不正确”)
 sys.exit(1)
 
 # 加载配置
@@ -171,21 +73,21 @@ for keyword in config["keywords"]:
         # 获取当前时间
         current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
-        print(f"[{current_time}] 命中关键词: {keyword}")
-        print(f"来源: {from_chat}")
-        print(f"消息内容: {msg[:100]}...")  # 只显示消息前100个字符
+        print("[" + current_time + "] 命中关键词: " + keyword)
+        print("来源: " + from_chat)
+        print("消息内容: " + msg[:100] + "...")  # 只显示消息前100个字符
         
         # 准备添加来源和时间的前缀信息
-        source_info = f"来源群组: {from_chat}\n时间: {current_time}\n\n"
+        source_info = "来源群组: " + from_chat + "\n时间: " + current_time + "\n\n"
         
         # 转发到所有目标
         for target in config["target_ids"]:
             try:
                 # 创建新消息，添加来源信息，同时保留原始消息内容
                 await client.send_message(target, source_info + msg)
-                print(f"✅ 成功转发到 {target}")
+                print("✅ 成功转发到 " + str(target))
             except Exception as e:
-                print(f"❌ 转发到 {target} 失败: {e}")
+                print("❌ 转发到 " + str(target) + " 失败: " + str(e))
         break  # 匹配一个关键词就跳出循环
 ```
 
@@ -201,14 +103,13 @@ except KeyboardInterrupt:
 print(”\n程序已停止”)
 sys.exit(0)
 except Exception as e:
-print(f”发生错误: {e}”)
+print(“发生错误: “ + str(e))
 sys.exit(1)
 EOF
 
-# 创建 bot_manager.py
+# 创建 bot_manager.py 文件
 
-echo -e “${YELLOW}创建 bot_manager.py${NC}”
-cat > $WORK_DIR/bot_manager.py << ‘EOF’
+cat > /opt/telegram-monitor/bot_manager.py << ‘EOF’
 #!/usr/bin/env python3
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
@@ -230,11 +131,11 @@ try:
 with open(CONFIG_FILE, ‘r’) as f:
 return json.load(f)
 except FileNotFoundError:
-logging.error(f”未找到配置文件 {CONFIG_FILE}”)
+logging.error(“未找到配置文件 “ + CONFIG_FILE)
 logging.error(“请从 config.example.json 复制一份并填写相关信息”)
 sys.exit(1)
 except json.JSONDecodeError:
-logging.error(f”配置文件 {CONFIG_FILE} 格式不正确”)
+logging.error(“配置文件 “ + CONFIG_FILE + “ 格式不正确”)
 sys.exit(1)
 
 def save_config(config):
@@ -245,93 +146,170 @@ def is_allowed(uid):
 “”“检查用户是否在白名单中”””
 return uid in load_config().get(“whitelist”, [])
 
-async def add_common(update, context, key):
-“”“添加通用配置项”””
-if not is_allowed(update.effective_user.id):
-await update.message.reply_text(“❌ 权限不足”)
-return
-
-```
-try:
-    value = context.args[0]
-    config = load_config()
-    
-    # 如果是数字ID，转换为整数
-    if key in ["target_ids", "whitelist"] and value.lstrip('-').isdigit():
-        value = int(value)
-    
-    if value not in config[key]:
-        config[key].append(value)
-        save_config(config)
-        await update.message.reply_text(f"✅ 已添加到 {key}: {value}")
-    else:
-        await update.message.reply_text("⚠️ 已存在")
-except IndexError:
-    await update.message.reply_text("❌ 格式错误，请提供参数")
-except Exception as e:
-    await update.message.reply_text(f"❌ 发生错误: {e}")
-```
-
-async def del_common(update, context, key):
-“”“删除通用配置项”””
-if not is_allowed(update.effective_user.id):
-await update.message.reply_text(“❌ 权限不足”)
-return
-
-```
-try:
-    value = context.args[0]
-    config = load_config()
-    
-    # 如果是数字ID，转换为整数
-    if key in ["target_ids", "whitelist"] and value.lstrip('-').isdigit():
-        value = int(value)
-    
-    if value in config[key]:
-        config[key].remove(value)
-        save_config(config)
-        await update.message.reply_text(f"✅ 已从 {key} 删除: {value}")
-    else:
-        await update.message.reply_text("⚠️ 不存在")
-except IndexError:
-    await update.message.reply_text("❌ 格式错误，请提供参数")
-except Exception as e:
-    await update.message.reply_text(f"❌ 发生错误: {e}")
-```
-
-# 添加关键词
-
 async def add_kw(update, context):
-await add_common(update, context, “keywords”)
+“”“添加关键词”””
+if not is_allowed(update.effective_user.id):
+await update.message.reply_text(“❌ 权限不足”)
+return
 
-# 删除关键词
+```
+try:
+    keyword = context.args[0]
+    config = load_config()
+    
+    if keyword not in config["keywords"]:
+        config["keywords"].append(keyword)
+        save_config(config)
+        await update.message.reply_text("✅ 已添加关键词: " + keyword)
+    else:
+        await update.message.reply_text("⚠️ 关键词已存在")
+except IndexError:
+    await update.message.reply_text("❌ 格式错误，请提供关键词")
+except Exception as e:
+    await update.message.reply_text("❌ 发生错误: " + str(e))
+```
 
 async def del_kw(update, context):
-await del_common(update, context, “keywords”)
+“”“删除关键词”””
+if not is_allowed(update.effective_user.id):
+await update.message.reply_text(“❌ 权限不足”)
+return
 
-# 添加转发目标
+```
+try:
+    keyword = context.args[0]
+    config = load_config()
+    
+    if keyword in config["keywords"]:
+        config["keywords"].remove(keyword)
+        save_config(config)
+        await update.message.reply_text("✅ 已删除关键词: " + keyword)
+    else:
+        await update.message.reply_text("⚠️ 关键词不存在")
+except IndexError:
+    await update.message.reply_text("❌ 格式错误，请提供关键词")
+except Exception as e:
+    await update.message.reply_text("❌ 发生错误: " + str(e))
+```
 
 async def add_group(update, context):
-await add_common(update, context, “target_ids”)
+“”“添加转发目标群组”””
+if not is_allowed(update.effective_user.id):
+await update.message.reply_text(“❌ 权限不足”)
+return
 
-# 删除转发目标
+```
+try:
+    group_id = context.args[0]
+    config = load_config()
+    
+    # 尝试将输入转换为整数（如果是数字ID）
+    try:
+        group_id = int(group_id)
+    except ValueError:
+        pass
+    
+    if group_id not in config["target_ids"]:
+        config["target_ids"].append(group_id)
+        save_config(config)
+        await update.message.reply_text("✅ 已添加转发目标: " + str(group_id))
+    else:
+        await update.message.reply_text("⚠️ 转发目标已存在")
+except IndexError:
+    await update.message.reply_text("❌ 格式错误，请提供群组ID")
+except Exception as e:
+    await update.message.reply_text("❌ 发生错误: " + str(e))
+```
 
 async def del_group(update, context):
-await del_common(update, context, “target_ids”)
+“”“删除转发目标群组”””
+if not is_allowed(update.effective_user.id):
+await update.message.reply_text(“❌ 权限不足”)
+return
 
-# 添加监听源
+```
+try:
+    group_id = context.args[0]
+    config = load_config()
+    
+    # 尝试将输入转换为整数（如果是数字ID）
+    try:
+        group_id = int(group_id)
+    except ValueError:
+        pass
+    
+    if group_id in config["target_ids"]:
+        config["target_ids"].remove(group_id)
+        save_config(config)
+        await update.message.reply_text("✅ 已删除转发目标: " + str(group_id))
+    else:
+        await update.message.reply_text("⚠️ 转发目标不存在")
+except IndexError:
+    await update.message.reply_text("❌ 格式错误，请提供群组ID")
+except Exception as e:
+    await update.message.reply_text("❌ 发生错误: " + str(e))
+```
 
 async def add_watch(update, context):
-await add_common(update, context, “watch_ids”)
+“”“添加监听源”””
+if not is_allowed(update.effective_user.id):
+await update.message.reply_text(“❌ 权限不足”)
+return
 
-# 删除监听源
+```
+try:
+    watch_id = context.args[0]
+    config = load_config()
+    
+    # 尝试将输入转换为整数（如果是数字ID）
+    try:
+        watch_id = int(watch_id)
+    except ValueError:
+        pass
+    
+    if watch_id not in config["watch_ids"]:
+        config["watch_ids"].append(watch_id)
+        save_config(config)
+        await update.message.reply_text("✅ 已添加监听源: " + str(watch_id))
+    else:
+        await update.message.reply_text("⚠️ 监听源已存在")
+except IndexError:
+    await update.message.reply_text("❌ 格式错误，请提供群组ID或用户名")
+except Exception as e:
+    await update.message.reply_text("❌ 发生错误: " + str(e))
+```
 
 async def del_watch(update, context):
-await del_common(update, context, “watch_ids”)
+“”“删除监听源”””
+if not is_allowed(update.effective_user.id):
+await update.message.reply_text(“❌ 权限不足”)
+return
 
-# 显示当前配置
+```
+try:
+    watch_id = context.args[0]
+    config = load_config()
+    
+    # 尝试将输入转换为整数（如果是数字ID）
+    try:
+        watch_id = int(watch_id)
+    except ValueError:
+        pass
+    
+    if watch_id in config["watch_ids"]:
+        config["watch_ids"].remove(watch_id)
+        save_config(config)
+        await update.message.reply_text("✅ 已删除监听源: " + str(watch_id))
+    else:
+        await update.message.reply_text("⚠️ 监听源不存在")
+except IndexError:
+    await update.message.reply_text("❌ 格式错误，请提供群组ID或用户名")
+except Exception as e:
+    await update.message.reply_text("❌ 发生错误: " + str(e))
+```
 
-async def show_config(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def show_config(update, context):
+“”“显示当前配置”””
 if not is_allowed(update.effective_user.id):
 await update.message.reply_text(“❌ 权限不足”)
 return
@@ -339,18 +317,17 @@ return
 ```
 config = load_config()
 text = (
-    f"📋 当前配置:\n\n"
-    f"🔑 关键词：\n{config['keywords']}\n\n"
-    f"🎯 转发目标：\n{config['target_ids']}\n\n"
-    f"👀 监听源群组/频道：\n{config['watch_ids']}\n\n"
-    f"👤 白名单用户ID：\n{config['whitelist']}"
+    "📋 当前配置:\n\n"
+    "🔑 关键词：\n" + str(config['keywords']) + "\n\n"
+    "🎯 转发目标：\n" + str(config['target_ids']) + "\n\n"
+    "👀 监听源群组/频道：\n" + str(config['watch_ids']) + "\n\n"
+    "👤 白名单用户ID：\n" + str(config['whitelist'])
 )
 await update.message.reply_text(text)
 ```
 
-# 允许用户使用机器人
-
-async def allow_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def allow_user(update, context):
+“”“允许用户使用机器人”””
 config = load_config()
 
 ```
@@ -364,7 +341,7 @@ try:
     if uid not in config["whitelist"]:
         config["whitelist"].append(uid)
         save_config(config)
-        await update.message.reply_text(f"✅ 已允许用户 {uid}")
+        await update.message.reply_text("✅ 已允许用户: " + str(uid))
     else:
         await update.message.reply_text("⚠️ 该用户已在白名单中")
 except IndexError:
@@ -372,12 +349,11 @@ except IndexError:
 except ValueError:
     await update.message.reply_text("❌ 用户ID必须为数字")
 except Exception as e:
-    await update.message.reply_text(f"❌ 发生错误: {e}")
+    await update.message.reply_text("❌ 发生错误: " + str(e))
 ```
 
-# 移除白名单用户
-
-async def unallow_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def unallow_user(update, context):
+“”“移除白名单用户”””
 config = load_config()
 
 ```
@@ -396,7 +372,7 @@ try:
     if uid in config["whitelist"]:
         config["whitelist"].remove(uid)
         save_config(config)
-        await update.message.reply_text(f"✅ 已移除用户 {uid}")
+        await update.message.reply_text("✅ 已移除用户: " + str(uid))
     else:
         await update.message.reply_text("⚠️ 该用户不在白名单中")
 except IndexError:
@@ -404,12 +380,11 @@ except IndexError:
 except ValueError:
     await update.message.reply_text("❌ 用户ID必须为数字")
 except Exception as e:
-    await update.message.reply_text(f"❌ 发生错误: {e}")
+    await update.message.reply_text("❌ 发生错误: " + str(e))
 ```
 
-# 帮助命令
-
-async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def help_cmd(update, context):
+“”“帮助命令”””
 if not is_allowed(update.effective_user.id):
 await update.message.reply_text(“❌ 权限不足”)
 return
@@ -431,9 +406,8 @@ text = (
 await update.message.reply_text(text)
 ```
 
-# 启动命令
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start(update, context):
+“”“启动命令”””
 text = (
 “👋 欢迎使用 Telegram 群组监控转发机器人!\n\n”
 “此机器人可以监控指定群组或频道的消息，”
@@ -479,7 +453,7 @@ token = config.get(‘bot_token’)
     app.run_polling()
     
 except Exception as e:
-    logging.error(f"发生错误: {e}")
+    logging.error("发生错误: " + str(e))
     sys.exit(1)
 ```
 
@@ -487,69 +461,40 @@ if **name** == ‘**main**’:
 main()
 EOF
 
-# 创建 .gitignore
+# 创建示例配置文件
 
-echo -e “${YELLOW}创建 .gitignore${NC}”
-cat > $WORK_DIR/.gitignore << ‘EOF’
-
-# 配置文件(包含敏感信息)
-
-config.json
-
-# Telethon会话文件
-
-*.session
-*.session-journal
-
-# Python缓存
-
-**pycache**/
-*.py[cod]
-*$py.class
-*.so
-.Python
-env/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# 日志文件
-
-*.log
-
-# 系统文件
-
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
+cat > /opt/telegram-monitor/config.example.json << ‘EOF’
+{
+“api_id”: “YOUR_API_ID”,
+“api_hash”: “YOUR_API_HASH”,
+“bot_token”: “YOUR_BOT_TOKEN”,
+“target_ids”: [-1002243984935, 165067365],
+“keywords”: [“example”, “keyword1”, “keyword2”],
+“watch_ids”: [“channelname”, “groupname”],
+“whitelist”: [123456789]
+}
 EOF
 
-# 设置权限
+# 创建配置文件
 
-echo -e “${YELLOW}设置文件权限…${NC}”
-chmod +x $WORK_DIR/channel_forwarder.py
-chmod +x $WORK_DIR/bot_manager.py
+cat > /opt/telegram-monitor/config.json << ‘EOF’
+{
+“api_id”: “123456”,
+“api_hash”: “abcdef1234567890abcdef1234567890”,
+“bot_token”: “1234567890:ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789”,
+“target_ids”: [-1001234567890],
+“keywords”: [“关键词1”, “关键词2”],
+“watch_ids”: [“channelname”, “groupname”],
+“whitelist”: [123456789]
+}
+EOF
 
-# 创建服务文件
+# 设置执行权限
 
-echo -e “${YELLOW}创建系统服务…${NC}”
+chmod +x /opt/telegram-monitor/channel_forwarder.py
+chmod +x /opt/telegram-monitor/bot_manager.py
 
-# 创建channel_forwarder服务
+# 创建系统服务
 
 cat > /etc/systemd/system/channel_forwarder.service << EOF
 [Unit]
@@ -557,8 +502,8 @@ Description=Telegram Channel Forwarder Service
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/python3 ${WORK_DIR}/channel_forwarder.py
-WorkingDirectory=${WORK_DIR}
+ExecStart=/usr/bin/python3 /opt/telegram-monitor/channel_forwarder.py
+WorkingDirectory=/opt/telegram-monitor
 Restart=always
 RestartSec=5
 User=root
@@ -567,16 +512,14 @@ User=root
 WantedBy=multi-user.target
 EOF
 
-# 创建bot_manager服务
-
 cat > /etc/systemd/system/bot_manager.service << EOF
 [Unit]
 Description=Telegram Bot Manager Service
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/python3 ${WORK_DIR}/bot_manager.py
-WorkingDirectory=${WORK_DIR}
+ExecStart=/usr/bin/python3 /opt/telegram-monitor/bot_manager.py
+WorkingDirectory=/opt/telegram-monitor
 Restart=always
 RestartSec=5
 User=root
@@ -588,125 +531,13 @@ EOF
 # 重新加载systemd
 
 systemctl daemon-reload
-
-# 启用服务
-
 systemctl enable channel_forwarder.service
 systemctl enable bot_manager.service
 
-# 交互式配置部分
-
-echo “”
-echo -e “${GREEN}现在进行Telegram API配置${NC}”
-echo “”
-
-# 获取Telegram API ID
-
-echo -e “${YELLOW}请输入您的 Telegram API ID${NC}”
-echo “可从 https://my.telegram.org/apps 获取”
-read -p “API ID: “ API_ID
-
-# 获取Telegram API Hash
-
-echo -e “${YELLOW}请输入您的 Telegram API Hash${NC}”
-read -p “API Hash: “ API_HASH
-
-# 获取Bot Token
-
-echo -e “${YELLOW}请输入您的 Telegram Bot Token${NC}”
-echo “从 BotFather 获取”
-read -p “Bot Token: “ BOT_TOKEN
-
-# 获取管理员ID
-
-echo -e “${YELLOW}请输入管理员的 Telegram 用户ID${NC}”
-read -p “管理员ID: “ ADMIN_ID
-
-# 设置监控关键词
-
-echo -e “${YELLOW}请输入要监控的关键词 (用空格分隔)${NC}”
-read -p “关键词: “ KEYWORDS
-KEYWORDS_ARRAY=(${KEYWORDS})
-KEYWORDS_JSON=”[”
-for i in “${!KEYWORDS_ARRAY[@]}”; do
-KEYWORDS_JSON+=”"${KEYWORDS_ARRAY[i]}"”
-if [ $i -lt $((${#KEYWORDS_ARRAY[@]}-1)) ]; then
-KEYWORDS_JSON+=”, “
-fi
-done
-KEYWORDS_JSON+=”]”
-
-# 设置监控的群组/频道
-
-echo -e “${YELLOW}请输入要监控的群组或频道 (用空格分隔，可以是用户名或ID)${NC}”
-read -p “监控源: “ WATCH_IDS
-WATCH_ARRAY=(${WATCH_IDS})
-WATCH_JSON=”[”
-for i in “${!WATCH_ARRAY[@]}”; do
-
-# 检查是否为数字ID
-
-if [[ ${WATCH_ARRAY[i]} =~ ^-?[0-9]+$ ]]; then
-WATCH_JSON+=”${WATCH_ARRAY[i]}”
-else
-WATCH_JSON+=”"${WATCH_ARRAY[i]}"”
-fi
-if [ $i -lt $((${#WATCH_ARRAY[@]}-1)) ]; then
-WATCH_JSON+=”, “
-fi
-done
-WATCH_JSON+=”]”
-
-# 设置转发目标
-
-echo -e “${YELLOW}请输入消息转发目标 (用空格分隔，可以是用户ID或群组ID)${NC}”
-read -p “转发目标: “ TARGET_IDS
-TARGET_ARRAY=(${TARGET_IDS})
-TARGET_JSON=”[”
-for i in “${!TARGET_ARRAY[@]}”; do
-
-# 检查是否为数字ID
-
-if [[ ${TARGET_ARRAY[i]} =~ ^-?[0-9]+$ ]]; then
-TARGET_JSON+=”${TARGET_ARRAY[i]}”
-else
-TARGET_JSON+=”"${TARGET_ARRAY[i]}"”
-fi
-if [ $i -lt $((${#TARGET_ARRAY[@]}-1)) ]; then
-TARGET_JSON+=”, “
-fi
-done
-TARGET_JSON+=”]”
-
-# 创建配置文件
-
-cat > $WORK_DIR/config.json << EOF
-{
-“api_id”: “${API_ID}”,
-“api_hash”: “${API_HASH}”,
-“bot_token”: “${BOT_TOKEN}”,
-“target_ids”: ${TARGET_JSON},
-“keywords”: ${KEYWORDS_JSON},
-“watch_ids”: ${WATCH_JSON},
-“whitelist”: [${ADMIN_ID}]
-}
-EOF
-
-# 显示完成信息
-
-echo “”
-echo -e “${GREEN}✅ 配置完成！${NC}”
-echo “”
-echo -e “${YELLOW}现在运行以下命令登录Telegram账号:${NC}”
-echo -e “  ${BLUE}cd ${WORK_DIR} && python3 channel_forwarder.py${NC}”
-echo “”
-echo -e “${YELLOW}登录成功后，启动服务:${NC}”
-echo -e “  ${BLUE}systemctl start channel_forwarder${NC}”
-echo -e “  ${BLUE}systemctl start bot_manager${NC}”
-echo “”
-echo -e “${YELLOW}查看服务状态:${NC}”
-echo -e “  ${BLUE}systemctl status channel_forwarder${NC}”
-echo -e “  ${BLUE}systemctl status bot_manager${NC}”
-echo “”
-echo -e “${GREEN}项目文件位置: ${WORK_DIR}${NC}”
-echo “”
+echo “========================================”
+echo “安装完成！请编辑配置文件后启动服务：”
+echo “1. 编辑配置文件：nano /opt/telegram-monitor/config.json”
+echo “2. 首次运行登录：cd /opt/telegram-monitor && python3 channel_forwarder.py”
+echo “3. 启动服务：systemctl start channel_forwarder && systemctl start bot_manager”
+echo “4. 查看状态：systemctl status channel_forwarder”
+echo “========================================”
