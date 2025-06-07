@@ -39,7 +39,7 @@ apt update
 apt install -y python3-pip
 
 echo -e “${YELLOW}安装 Python 依赖…${NC}”
-pip3 install –break-system-packages –upgrade telethon python-telegram-bot
+pip3 install –upgrade telethon python-telegram-bot
 
 # 创建 README.md
 
@@ -172,26 +172,37 @@ for keyword in config["keywords"]:
         print(f"来源: {from_chat}")
         print(f"消息内容: {msg[:100]}...")  # 只显示消息前100个字符
         
-        # 获取群组名称或频道标题
-        source_name = ""
-        if hasattr(event.chat, 'title') and event.chat.title:
-            source_name = event.chat.title
-        elif hasattr(event.chat, 'username') and event.chat.username:
-            source_name = f"@{event.chat.username}"
-        else:
-            source_name = f"群组ID: {event.chat_id}"
+        # 获取群组/频道信息
+        try:
+            chat_entity = await client.get_entity(event.chat_id)
+            chat_title = getattr(chat_entity, 'title', 'Unknown')
+            chat_username = getattr(chat_entity, 'username', None)
+            
+            # 构建消息头部，包含来源信息
+            source_info = f"🔔 来自群组: **{chat_title}**"
+            if chat_username:
+                source_info += f"\n👉 群组链接: https://t.me/{chat_username}"
+            
+            # 发送来源信息和原消息到所有目标
+            for target in config["target_ids"]:
+                try:
+                    # 先发送来源信息
+                    await client.send_message(target, source_info, parse_mode='md')
+                    # 再转发原消息
+                    await client.forward_messages(target, event.message)
+                    print(f"✅ 成功转发到 {target}")
+                except Exception as e:
+                    print(f"❌ 转发到 {target} 失败: {e}")
+        except Exception as e:
+            print(f"获取群组信息失败: {e}")
+            # 如果获取信息失败，仍然转发原消息
+            for target in config["target_ids"]:
+                try:
+                    await client.forward_messages(target, event.message)
+                    print(f"✅ 成功转发到 {target}")
+                except Exception as e:
+                    print(f"❌ 转发到 {target} 失败: {e}")
         
-        # 构建转发消息，包含来源信息
-        forward_text = f"📢 来自: {source_name}\n" + "─" * 30 + "\n" + msg
-        
-        # 转发到所有目标
-        for target in config["target_ids"]:
-            try:
-                # 发送带有来源信息的消息
-                await client.send_message(target, forward_text)
-                print(f"✅ 成功转发到 {target} (来源: {source_name})")
-            except Exception as e:
-                print(f"❌ 转发到 {target} 失败: {e}")
         break  # 匹配一个关键词就跳出循环
 ```
 
