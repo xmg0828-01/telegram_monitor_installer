@@ -10,7 +10,7 @@ GREEN=’\033[0;32m’
 YELLOW=’\033[1;33m’
 RED=’\033[0;31m’
 BLUE=’\033[0;34m’
-NC=’\033[0m’ # 恢复默认颜色
+NC=’\033[0m’
 
 # 检查是否为 root 用户运行
 
@@ -39,20 +39,8 @@ apt update
 apt install -y python3-pip
 
 echo -e “${YELLOW}安装 Python 依赖…${NC}”
-
-# 自动处理 externally-managed-environment 错误
-
-echo “正在尝试安装Python依赖…”
-if pip3 install –upgrade telethon python-telegram-bot >/dev/null 2>&1; then
-echo “✅ Python依赖安装成功”
-elif pip3 install –upgrade –break-system-packages telethon python-telegram-bot >/dev/null 2>&1; then
-echo “✅ 使用 –break-system-packages 安装成功”
-else
-echo “⚠️ 使用强制方法安装…”
 export PIP_BREAK_SYSTEM_PACKAGES=1
 pip3 install –upgrade telethon python-telegram-bot
-echo “✅ 强制安装完成”
-fi
 
 # 创建 README.md
 
@@ -117,7 +105,7 @@ cat > $WORK_DIR/config.example.json << ‘EOF’
 }
 EOF
 
-# 创建 channel_forwarder.py（只修改转发部分，增加消息来源）
+# 创建 channel_forwarder.py
 
 echo -e “${YELLOW}创建 channel_forwarder.py${NC}”
 cat > $WORK_DIR/channel_forwarder.py << ‘EOF’
@@ -184,7 +172,7 @@ for keyword in config["keywords"]:
     if keyword.lower() in msg.lower():
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 命中关键词: {keyword}")
         print(f"来源: {chat_title} ({from_chat})")
-        print(f"消息内容: {msg[:100]}...")  # 只显示消息前100个字符
+        print(f"消息内容: {msg[:100]}...")
         
         # 构建来源信息
         source_info = f"📍 来源群组: {chat_title}"
@@ -204,7 +192,7 @@ for keyword in config["keywords"]:
                 print(f"✅ 成功转发到 {target} (含来源信息)")
             except Exception as e:
                 print(f"❌ 转发到 {target} 失败: {e}")
-        break  # 匹配一个关键词就跳出循环
+        break
 ```
 
 print(”>>> 正在监听关键词转发 …”)
@@ -236,8 +224,6 @@ import sys
 
 CONFIG_FILE = ‘config.json’
 
-# 设置日志记录
-
 logging.basicConfig(
 format=’%(asctime)s - %(levelname)s - %(message)s’,
 level=logging.INFO
@@ -260,11 +246,9 @@ with open(CONFIG_FILE, ‘w’) as f:
 json.dump(config, f, indent=2)
 
 def is_allowed(uid):
-“”“检查用户是否在白名单中”””
 return uid in load_config().get(“whitelist”, [])
 
 async def add_common(update, context, key):
-“”“添加通用配置项”””
 if not is_allowed(update.effective_user.id):
 await update.message.reply_text(“❌ 权限不足”)
 return
@@ -274,7 +258,6 @@ try:
     value = context.args[0]
     config = load_config()
     
-    # 如果是数字ID，转换为整数
     if key in ["target_ids", "whitelist"] and value.lstrip('-').isdigit():
         value = int(value)
     
@@ -291,7 +274,6 @@ except Exception as e:
 ```
 
 async def del_common(update, context, key):
-“”“删除通用配置项”””
 if not is_allowed(update.effective_user.id):
 await update.message.reply_text(“❌ 权限不足”)
 return
@@ -301,7 +283,6 @@ try:
     value = context.args[0]
     config = load_config()
     
-    # 如果是数字ID，转换为整数
     if key in ["target_ids", "whitelist"] and value.lstrip('-').isdigit():
         value = int(value)
     
@@ -317,37 +298,23 @@ except Exception as e:
     await update.message.reply_text(f"❌ 发生错误: {e}")
 ```
 
-# 添加关键词
-
 async def add_kw(update, context):
 await add_common(update, context, “keywords”)
-
-# 删除关键词
 
 async def del_kw(update, context):
 await del_common(update, context, “keywords”)
 
-# 添加转发目标
-
 async def add_group(update, context):
 await add_common(update, context, “target_ids”)
-
-# 删除转发目标
 
 async def del_group(update, context):
 await del_common(update, context, “target_ids”)
 
-# 添加监听源
-
 async def add_watch(update, context):
 await add_common(update, context, “watch_ids”)
 
-# 删除监听源
-
 async def del_watch(update, context):
 await del_common(update, context, “watch_ids”)
-
-# 显示当前配置
 
 async def show_config(update: Update, context: ContextTypes.DEFAULT_TYPE):
 if not is_allowed(update.effective_user.id):
@@ -366,13 +333,10 @@ text = (
 await update.message.reply_text(text)
 ```
 
-# 允许用户使用机器人
-
 async def allow_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
 config = load_config()
 
 ```
-# 只允许第一个白名单用户(管理员)添加其他用户
 if update.effective_user.id != config['whitelist'][0]:
     await update.message.reply_text("❌ 权限不足")
     return
@@ -393,20 +357,16 @@ except Exception as e:
     await update.message.reply_text(f"❌ 发生错误: {e}")
 ```
 
-# 移除白名单用户
-
 async def unallow_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
 config = load_config()
 
 ```
-# 只允许第一个白名单用户(管理员)移除其他用户
 if update.effective_user.id != config['whitelist'][0]:
     await update.message.reply_text("❌ 权限不足")
     return
 
 try:
     uid = int(context.args[0])
-    # 防止移除自己(第一个白名单用户)
     if uid == config['whitelist'][0]:
         await update.message.reply_text("❌ 不能移除首个白名单用户(管理员)")
         return
@@ -424,8 +384,6 @@ except ValueError:
 except Exception as e:
     await update.message.reply_text(f"❌ 发生错误: {e}")
 ```
-
-# 帮助命令
 
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 if not is_allowed(update.effective_user.id):
@@ -449,8 +407,6 @@ text = (
 await update.message.reply_text(text)
 ```
 
-# 启动命令
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 text = (
 “👋 欢迎使用 Telegram 群组监控转发机器人!\n\n”
@@ -462,7 +418,6 @@ await update.message.reply_text(text)
 
 def main():
 try:
-# 从配置文件获取机器人令牌
 config = load_config()
 token = config.get(‘bot_token’)
 
@@ -471,15 +426,12 @@ token = config.get(‘bot_token’)
         logging.error("错误: 请在配置文件中设置有效的 bot_token")
         sys.exit(1)
     
-    # 检查白名单是否为空
     if not config.get('whitelist'):
         logging.error("错误: 请在配置文件中添加至少一个白名单用户ID")
         sys.exit(1)
     
-    # 创建应用
     app = ApplicationBuilder().token(token).build()
     
-    # 添加命令处理程序
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("addkw", add_kw))
     app.add_handler(CommandHandler("delkw", del_kw))
@@ -492,7 +444,6 @@ token = config.get(‘bot_token’)
     app.add_handler(CommandHandler("show", show_config))
     app.add_handler(CommandHandler("help", help_cmd))
     
-    # 启动机器人
     logging.info("Bot管理器已启动")
     app.run_polling()
     
@@ -509,18 +460,9 @@ EOF
 
 echo -e “${YELLOW}创建 .gitignore${NC}”
 cat > $WORK_DIR/.gitignore << ‘EOF’
-
-# 配置文件(包含敏感信息)
-
 config.json
-
-# Telethon会话文件
-
 *.session
 *.session-journal
-
-# Python缓存
-
 **pycache**/
 *.py[cod]
 *$py.class
@@ -541,13 +483,7 @@ var/
 *.egg-info/
 .installed.cfg
 *.egg
-
-# 日志文件
-
 *.log
-
-# 系统文件
-
 .DS_Store
 .DS_Store?
 ._*
@@ -567,8 +503,6 @@ chmod +x $WORK_DIR/bot_manager.py
 
 echo -e “${YELLOW}创建系统服务…${NC}”
 
-# 创建channel_forwarder服务
-
 cat > /etc/systemd/system/channel_forwarder.service << EOF
 [Unit]
 Description=Telegram Channel Forwarder Service
@@ -584,8 +518,6 @@ User=root
 [Install]
 WantedBy=multi-user.target
 EOF
-
-# 创建bot_manager服务
 
 cat > /etc/systemd/system/bot_manager.service << EOF
 [Unit]
@@ -603,12 +535,7 @@ User=root
 WantedBy=multi-user.target
 EOF
 
-# 重新加载systemd
-
 systemctl daemon-reload
-
-# 启用服务
-
 systemctl enable channel_forwarder.service
 systemctl enable bot_manager.service
 
@@ -618,29 +545,19 @@ echo “”
 echo -e “${GREEN}现在进行Telegram API配置${NC}”
 echo “”
 
-# 获取Telegram API ID
-
 echo -e “${YELLOW}请输入您的 Telegram API ID${NC}”
 echo “可从 https://my.telegram.org/apps 获取”
 read -p “API ID: “ API_ID
 
-# 获取Telegram API Hash
-
 echo -e “${YELLOW}请输入您的 Telegram API Hash${NC}”
 read -p “API Hash: “ API_HASH
-
-# 获取Bot Token
 
 echo -e “${YELLOW}请输入您的 Telegram Bot Token${NC}”
 echo “从 BotFather 获取”
 read -p “Bot Token: “ BOT_TOKEN
 
-# 获取管理员ID
-
 echo -e “${YELLOW}请输入管理员的 Telegram 用户ID${NC}”
 read -p “管理员ID: “ ADMIN_ID
-
-# 设置监控关键词
 
 echo -e “${YELLOW}请输入要监控的关键词 (用空格分隔)${NC}”
 read -p “关键词: “ KEYWORDS
@@ -654,16 +571,11 @@ fi
 done
 KEYWORDS_JSON+=”]”
 
-# 设置监控的群组/频道
-
 echo -e “${YELLOW}请输入要监控的群组或频道 (用空格分隔，可以是用户名或ID)${NC}”
 read -p “监控源: “ WATCH_IDS
 WATCH_ARRAY=(${WATCH_IDS})
 WATCH_JSON=”[”
 for i in “${!WATCH_ARRAY[@]}”; do
-
-# 检查是否为数字ID
-
 if [[ ${WATCH_ARRAY[i]} =~ ^-?[0-9]+$ ]]; then
 WATCH_JSON+=”${WATCH_ARRAY[i]}”
 else
@@ -675,16 +587,11 @@ fi
 done
 WATCH_JSON+=”]”
 
-# 设置转发目标
-
 echo -e “${YELLOW}请输入消息转发目标 (用空格分隔，可以是用户ID或群组ID)${NC}”
 read -p “转发目标: “ TARGET_IDS
 TARGET_ARRAY=(${TARGET_IDS})
 TARGET_JSON=”[”
 for i in “${!TARGET_ARRAY[@]}”; do
-
-# 检查是否为数字ID
-
 if [[ ${TARGET_ARRAY[i]} =~ ^-?[0-9]+$ ]]; then
 TARGET_JSON+=”${TARGET_ARRAY[i]}”
 else
@@ -695,8 +602,6 @@ TARGET_JSON+=”, “
 fi
 done
 TARGET_JSON+=”]”
-
-# 创建配置文件
 
 cat > $WORK_DIR/config.json << EOF
 {
@@ -709,8 +614,6 @@ cat > $WORK_DIR/config.json << EOF
 “whitelist”: [${ADMIN_ID}]
 }
 EOF
-
-# 显示完成信息
 
 echo “”
 echo -e “${GREEN}✅ 配置完成！${NC}”
