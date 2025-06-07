@@ -36,18 +36,10 @@ cd $WORK_DIR
 
 echo -e “${YELLOW}安装系统依赖…${NC}”
 apt update
-apt install -y python3-pip python3-venv python3-full
-
-# 创建虚拟环境
-
-echo -e “${YELLOW}创建Python虚拟环境…${NC}”
-python3 -m venv $WORK_DIR/venv
-
-# 激活虚拟环境并安装依赖
+apt install -y python3-pip
 
 echo -e “${YELLOW}安装 Python 依赖…${NC}”
-$WORK_DIR/venv/bin/pip install –upgrade pip
-$WORK_DIR/venv/bin/pip install telethon python-telegram-bot
+pip3 install –break-system-packages telethon python-telegram-bot
 
 # 创建 README.md
 
@@ -116,7 +108,7 @@ EOF
 
 echo -e “${YELLOW}创建 channel_forwarder.py${NC}”
 cat > $WORK_DIR/channel_forwarder.py << ‘EOF’
-#!/opt/telegram-monitor/venv/bin/python
+#!/usr/bin/env python3
 from telethon import TelegramClient, events
 from datetime import datetime
 import json
@@ -223,7 +215,7 @@ EOF
 
 echo -e “${YELLOW}创建 bot_manager.py${NC}”
 cat > $WORK_DIR/bot_manager.py << ‘EOF’
-#!/opt/telegram-monitor/venv/bin/python
+#!/usr/bin/env python3
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 import json
@@ -571,7 +563,7 @@ Description=Telegram Channel Forwarder Service
 After=network.target
 
 [Service]
-ExecStart=${WORK_DIR}/venv/bin/python ${WORK_DIR}/channel_forwarder.py
+ExecStart=/usr/bin/python3 ${WORK_DIR}/channel_forwarder.py
 WorkingDirectory=${WORK_DIR}
 Restart=always
 RestartSec=5
@@ -589,7 +581,7 @@ Description=Telegram Bot Manager Service
 After=network.target
 
 [Service]
-ExecStart=${WORK_DIR}/venv/bin/python ${WORK_DIR}/bot_manager.py
+ExecStart=/usr/bin/python3 ${WORK_DIR}/bot_manager.py
 WorkingDirectory=${WORK_DIR}
 Restart=always
 RestartSec=5
@@ -712,7 +704,7 @@ echo “”
 echo -e “${GREEN}✅ 配置完成！${NC}”
 echo “”
 echo -e “${YELLOW}现在运行以下命令登录Telegram账号:${NC}”
-echo -e “  ${BLUE}cd ${WORK_DIR} && ${WORK_DIR}/venv/bin/python channel_forwarder.py${NC}”
+echo -e “  ${BLUE}cd ${WORK_DIR} && python3 channel_forwarder.py${NC}”
 echo “”
 echo -e “${YELLOW}登录成功后，启动服务:${NC}”
 echo -e “  ${BLUE}systemctl start channel_forwarder${NC}”
