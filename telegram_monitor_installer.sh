@@ -39,7 +39,7 @@ apt update
 apt install -y python3-pip
 
 echo -e “${YELLOW}安装 Python 依赖…${NC}”
-pip3 install –upgrade telethon python-telegram-bot
+pip3 install –upgrade –break-system-packages telethon python-telegram-bot
 
 # 创建 README.md
 
