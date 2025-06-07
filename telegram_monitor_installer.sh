@@ -32,28 +32,19 @@ echo -e “${YELLOW}创建工作目录: $WORK_DIR${NC}”
 mkdir -p $WORK_DIR
 cd $WORK_DIR
 
-# 安装系统依赖
+# 安装依赖
 
 echo -e “${YELLOW}安装系统依赖…${NC}”
 apt update
-apt install -y python3-pip python3-venv python3-full
+apt install -y python3-pip
 
-# 创建虚拟环境
-
-echo -e “${YELLOW}创建Python虚拟环境…${NC}”
-python3 -m venv telegram-venv
-source telegram-venv/bin/activate
-
-# 在虚拟环境中安装Python依赖
-
-echo -e “${YELLOW}在虚拟环境中安装 Python 依赖…${NC}”
-pip install –upgrade pip
-pip install telethon python-telegram-bot
+echo -e “${YELLOW}安装 Python 依赖…${NC}”
+pip3 install –upgrade –break-system-packages telethon python-telegram-bot
 
 # 创建 README.md
 
 echo -e “${YELLOW}创建 README.md${NC}”
-cat > “${WORK_DIR}/README.md” << ‘EOF’
+cat > $WORK_DIR/README.md << ‘EOF’
 
 # Telegram 群组监控转发工具
 
@@ -94,7 +85,7 @@ cat > “${WORK_DIR}/README.md” << ‘EOF’
 # 创建 requirements.txt
 
 echo -e “${YELLOW}创建 requirements.txt${NC}”
-cat > “${WORK_DIR}/requirements.txt” << ‘EOF’
+cat > $WORK_DIR/requirements.txt << ‘EOF’
 telethon>=1.29.2
 python-telegram-bot>=20.0
 EOF
@@ -102,7 +93,7 @@ EOF
 # 创建配置文件模板
 
 echo -e “${YELLOW}创建配置文件模板…${NC}”
-cat > “${WORK_DIR}/config.example.json” << ‘EOF’
+cat > $WORK_DIR/config.example.json << ‘EOF’
 {
 “api_id”: “YOUR_API_ID”,
 “api_hash”: “YOUR_API_HASH”,
@@ -116,8 +107,8 @@ EOF
 
 # 创建增强版 channel_forwarder.py (带来源信息)
 
-echo -e “${YELLOW}创建增强版 channel_forwarder.py${NC}”
-cat > “${WORK_DIR}/channel_forwarder.py” << ‘EOF’
+echo -e “${YELLOW}创建 channel_forwarder.py${NC}”
+cat > $WORK_DIR/channel_forwarder.py << ‘EOF’
 #!/usr/bin/env python3
 from telethon import TelegramClient, events
 from datetime import datetime
@@ -125,11 +116,11 @@ import json
 import os
 import sys
 
-CONFIG_FILE = “config.json”
+CONFIG_FILE = ‘config.json’
 
 def load_config():
 try:
-with open(CONFIG_FILE, “r”) as f:
+with open(CONFIG_FILE, ‘r’) as f:
 return json.load(f)
 except FileNotFoundError:
 print(f”错误: 未找到配置文件 {CONFIG_FILE}”)
@@ -145,8 +136,8 @@ config = load_config()
 
 # 从配置文件获取API凭据
 
-api_id = config.get(“api_id”)
-api_hash = config.get(“api_hash”)
+api_id = config.get(‘api_id’)
+api_hash = config.get(‘api_hash’)
 
 if not api_id or not api_hash:
 print(“错误: 请在配置文件中设置有效的 api_id 和 api_hash”)
@@ -155,29 +146,29 @@ sys.exit(1)
 
 # 创建客户端实例
 
-client = TelegramClient(“channel_forward_session”, api_id, api_hash)
+client = TelegramClient(‘channel_forward_session’, api_id, api_hash)
 
 async def get_chat_info(chat):
 “”“获取群组/频道的详细信息”””
 chat_info = {
-“id”: chat.id,
-“title”: getattr(chat, “title”, “”),
-“username”: getattr(chat, “username”, “”),
-“type”: “unknown”
+‘id’: chat.id,
+‘title’: getattr(chat, ‘title’, ‘’),
+‘username’: getattr(chat, ‘username’, ‘’),
+‘type’: ‘unknown’
 }
 
 ```
 # 判断聊天类型
-if hasattr(chat, "megagroup") and chat.megagroup:
-    chat_info["type"] = "超级群组"
-elif hasattr(chat, "broadcast") and chat.broadcast:
-    chat_info["type"] = "频道"
-elif hasattr(chat, "gigagroup") and chat.gigagroup:
-    chat_info["type"] = "广播群组"
-elif getattr(chat, "username", None):
-    chat_info["type"] = "群组/频道"
+if hasattr(chat, 'megagroup') and chat.megagroup:
+    chat_info['type'] = '超级群组'
+elif hasattr(chat, 'broadcast') and chat.broadcast:
+    chat_info['type'] = '频道'
+elif hasattr(chat, 'gigagroup') and chat.gigagroup:
+    chat_info['type'] = '广播群组'
+elif getattr(chat, 'username', None):
+    chat_info['type'] = '群组/频道'
 else:
-    chat_info["type"] = "私聊群组"
+    chat_info['type'] = '私聊群组'
 
 return chat_info
 ```
@@ -198,10 +189,10 @@ chat = await event.get_chat()
 chat_info = await get_chat_info(chat)
 
 # 构建来源标识
-source_identifier = chat_info["username"] or str(chat_info["id"])
+source_identifier = chat_info['username'] or str(chat_info['id'])
 
 # 检查是否为监控目标
-if source_identifier not in config["watch_ids"] and str(chat_info["id"]) not in config["watch_ids"]:
+if source_identifier not in config["watch_ids"] and str(chat_info['id']) not in config["watch_ids"]:
     return
 
 # 检查关键词
@@ -218,7 +209,7 @@ if matched_keyword:
     
     # 构建带来源信息的转发消息
     source_info = f"📍 来源: {chat_info['title'] or '未知群组'}"
-    if chat_info["username"]:
+    if chat_info['username']:
         source_info += f" (@{chat_info['username']})"
     source_info += f"\n🏷️ 类型: {chat_info['type']}"
     source_info += f"\n🔑 触发关键词: {matched_keyword}"
@@ -258,7 +249,7 @@ EOF
 # 创建 bot_manager.py
 
 echo -e “${YELLOW}创建 bot_manager.py${NC}”
-cat > “${WORK_DIR}/bot_manager.py” << ‘EOF’
+cat > $WORK_DIR/bot_manager.py << ‘EOF’
 #!/usr/bin/env python3
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
@@ -266,18 +257,18 @@ import json
 import logging
 import sys
 
-CONFIG_FILE = “config.json”
+CONFIG_FILE = ‘config.json’
 
 # 设置日志记录
 
 logging.basicConfig(
-format=”%(asctime)s - %(levelname)s - %(message)s”,
+format=’%(asctime)s - %(levelname)s - %(message)s’,
 level=logging.INFO
 )
 
 def load_config():
 try:
-with open(CONFIG_FILE, “r”) as f:
+with open(CONFIG_FILE, ‘r’) as f:
 return json.load(f)
 except FileNotFoundError:
 logging.error(f”未找到配置文件 {CONFIG_FILE}”)
@@ -288,7 +279,7 @@ logging.error(f”配置文件 {CONFIG_FILE} 格式不正确”)
 sys.exit(1)
 
 def save_config(config):
-with open(CONFIG_FILE, “w”) as f:
+with open(CONFIG_FILE, ‘w’) as f:
 json.dump(config, f, indent=2)
 
 def is_allowed(uid):
@@ -307,7 +298,7 @@ try:
     config = load_config()
     
     # 如果是数字ID，转换为整数
-    if key in ["target_ids", "whitelist"] and value.lstrip("-").isdigit():
+    if key in ["target_ids", "whitelist"] and value.lstrip('-').isdigit():
         value = int(value)
     
     if value not in config[key]:
@@ -334,7 +325,7 @@ try:
     config = load_config()
     
     # 如果是数字ID，转换为整数
-    if key in ["target_ids", "whitelist"] and value.lstrip("-").isdigit():
+    if key in ["target_ids", "whitelist"] and value.lstrip('-').isdigit():
         value = int(value)
     
     if value in config[key]:
@@ -405,7 +396,7 @@ config = load_config()
 
 ```
 # 只允许第一个白名单用户(管理员)添加其他用户
-if update.effective_user.id != config["whitelist"][0]:
+if update.effective_user.id != config['whitelist'][0]:
     await update.message.reply_text("❌ 权限不足")
     return
 
@@ -432,14 +423,14 @@ config = load_config()
 
 ```
 # 只允许第一个白名单用户(管理员)移除其他用户
-if update.effective_user.id != config["whitelist"][0]:
+if update.effective_user.id != config['whitelist'][0]:
     await update.message.reply_text("❌ 权限不足")
     return
 
 try:
     uid = int(context.args[0])
     # 防止移除自己(第一个白名单用户)
-    if uid == config["whitelist"][0]:
+    if uid == config['whitelist'][0]:
         await update.message.reply_text("❌ 不能移除首个白名单用户(管理员)")
         return
         
@@ -496,7 +487,7 @@ def main():
 try:
 # 从配置文件获取机器人令牌
 config = load_config()
-token = config.get(“bot_token”)
+token = config.get(‘bot_token’)
 
 ```
     if not token:
@@ -504,7 +495,7 @@ token = config.get(“bot_token”)
         sys.exit(1)
     
     # 检查白名单是否为空
-    if not config.get("whitelist"):
+    if not config.get('whitelist'):
         logging.error("错误: 请在配置文件中添加至少一个白名单用户ID")
         sys.exit(1)
     
@@ -533,33 +524,67 @@ except Exception as e:
     sys.exit(1)
 ```
 
-if **name** == “**main**”:
+if **name** == ‘**main**’:
 main()
 EOF
 
-# 创建启动脚本
+# 创建 .gitignore
 
-echo -e “${YELLOW}创建启动脚本…${NC}”
-cat > “${WORK_DIR}/start_forwarder.sh” << ‘EOF’
-#!/bin/bash
-cd /opt/telegram-monitor
-source telegram-venv/bin/activate
-python channel_forwarder.py
-EOF
+echo -e “${YELLOW}创建 .gitignore${NC}”
+cat > $WORK_DIR/.gitignore << ‘EOF’
 
-cat > “${WORK_DIR}/start_bot.sh” << ‘EOF’
-#!/bin/bash
-cd /opt/telegram-monitor
-source telegram-venv/bin/activate
-python bot_manager.py
+# 配置文件(包含敏感信息)
+
+config.json
+
+# Telethon会话文件
+
+*.session
+*.session-journal
+
+# Python缓存
+
+**pycache**/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# 日志文件
+
+*.log
+
+# 系统文件
+
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 EOF
 
 # 设置权限
 
-chmod +x “${WORK_DIR}/channel_forwarder.py”
-chmod +x “${WORK_DIR}/bot_manager.py”
-chmod +x “${WORK_DIR}/start_forwarder.sh”
-chmod +x “${WORK_DIR}/start_bot.sh”
+echo -e “${YELLOW}设置文件权限…${NC}”
+chmod +x $WORK_DIR/channel_forwarder.py
+chmod +x $WORK_DIR/bot_manager.py
 
 # 创建服务文件
 
@@ -573,7 +598,7 @@ Description=Telegram Channel Forwarder Service
 After=network.target
 
 [Service]
-ExecStart=${WORK_DIR}/start_forwarder.sh
+ExecStart=/usr/bin/python3 ${WORK_DIR}/channel_forwarder.py
 WorkingDirectory=${WORK_DIR}
 Restart=always
 RestartSec=5
@@ -591,7 +616,7 @@ Description=Telegram Bot Manager Service
 After=network.target
 
 [Service]
-ExecStart=${WORK_DIR}/start_bot.sh
+ExecStart=/usr/bin/python3 ${WORK_DIR}/bot_manager.py
 WorkingDirectory=${WORK_DIR}
 Restart=always
 RestartSec=5
@@ -696,7 +721,7 @@ TARGET_JSON+=”]”
 
 # 创建配置文件
 
-cat > “${WORK_DIR}/config.json” << EOF
+cat > $WORK_DIR/config.json << EOF
 {
 “api_id”: “${API_ID}”,
 “api_hash”: “${API_HASH}”,
@@ -714,9 +739,7 @@ echo “”
 echo -e “${GREEN}✅ 配置完成！${NC}”
 echo “”
 echo -e “${YELLOW}现在运行以下命令登录Telegram账号:${NC}”
-echo -e “  ${BLUE}cd ${WORK_DIR}${NC}”
-echo -e “  ${BLUE}source telegram-venv/bin/activate${NC}”
-echo -e “  ${BLUE}python channel_forwarder.py${NC}”
+echo -e “  ${BLUE}cd ${WORK_DIR} && python3 channel_forwarder.py${NC}”
 echo “”
 echo -e “${YELLOW}登录成功后，启动服务:${NC}”
 echo -e “  ${BLUE}systemctl start channel_forwarder${NC}”
@@ -727,6 +750,5 @@ echo -e “  ${BLUE}systemctl status channel_forwarder${NC}”
 echo -e “  ${BLUE}systemctl status bot_manager${NC}”
 echo “”
 echo -e “${GREEN}项目文件位置: ${WORK_DIR}${NC}”
-echo -e “${GREEN}虚拟环境: ${WORK_DIR}/telegram-venv${NC}”
 echo “”
-echo -e “${GREEN}增强功能: 转发消息时会显示来源群组信息${NC}”
+echo -e “${GREEN}增强功能: 转发消息时会显示来源群组信息! 🎯${NC}”
