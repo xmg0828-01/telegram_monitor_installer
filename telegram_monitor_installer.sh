@@ -39,21 +39,12 @@ apt update
 apt install -y python3-pip
 
 echo -e “${YELLOW}安装 Python 依赖…${NC}”
-
-# 尝试多种方式安装
-
-if pip3 install –upgrade –break-system-packages telethon python-telegram-bot 2>/dev/null; then
-echo “✅ 安装成功”
-else
-echo “⚠️  使用备用方法…”
-export PIP_BREAK_SYSTEM_PACKAGES=1
 pip3 install –upgrade telethon python-telegram-bot
-fi
 
 # 创建 README.md
 
 echo -e “${YELLOW}创建 README.md${NC}”
-cat > “${WORK_DIR}/README.md” << ‘EOF’
+cat > $WORK_DIR/README.md << ‘EOF’
 
 # Telegram 群组监控转发工具
 
@@ -93,7 +84,7 @@ cat > “${WORK_DIR}/README.md” << ‘EOF’
 # 创建 requirements.txt
 
 echo -e “${YELLOW}创建 requirements.txt${NC}”
-cat > “${WORK_DIR}/requirements.txt” << ‘EOF’
+cat > $WORK_DIR/requirements.txt << ‘EOF’
 telethon>=1.29.2
 python-telegram-bot>=20.0
 EOF
@@ -101,7 +92,7 @@ EOF
 # 创建配置文件模板
 
 echo -e “${YELLOW}创建配置文件模板…${NC}”
-cat > “${WORK_DIR}/config.example.json” << ‘EOF’
+cat > $WORK_DIR/config.example.json << ‘EOF’
 {
 “api_id”: “YOUR_API_ID”,
 “api_hash”: “YOUR_API_HASH”,
@@ -113,10 +104,10 @@ cat > “${WORK_DIR}/config.example.json” << ‘EOF’
 }
 EOF
 
-# 创建 channel_forwarder.py（增加消息来源显示）
+# 创建 channel_forwarder.py（只修改转发部分，增加消息来源）
 
 echo -e “${YELLOW}创建 channel_forwarder.py${NC}”
-cat > “${WORK_DIR}/channel_forwarder.py” << ‘EOF’
+cat > $WORK_DIR/channel_forwarder.py << ‘EOF’
 #!/usr/bin/env python3
 from telethon import TelegramClient, events
 from datetime import datetime
@@ -222,7 +213,7 @@ EOF
 # 创建 bot_manager.py
 
 echo -e “${YELLOW}创建 bot_manager.py${NC}”
-cat > “${WORK_DIR}/bot_manager.py” << ‘EOF’
+cat > $WORK_DIR/bot_manager.py << ‘EOF’
 #!/usr/bin/env python3
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
@@ -504,7 +495,7 @@ EOF
 # 创建 .gitignore
 
 echo -e “${YELLOW}创建 .gitignore${NC}”
-cat > “${WORK_DIR}/.gitignore” << ‘EOF’
+cat > $WORK_DIR/.gitignore << ‘EOF’
 
 # 配置文件(包含敏感信息)
 
@@ -694,7 +685,7 @@ TARGET_JSON+=”]”
 
 # 创建配置文件
 
-cat > “${WORK_DIR}/config.json” << EOF
+cat > $WORK_DIR/config.json << EOF
 {
 “api_id”: “${API_ID}”,
 “api_hash”: “${API_HASH}”,
