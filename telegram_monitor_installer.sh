@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Telegram 群组监控转发工具安装脚本
+# Telegram 群组监控转发工具安装脚本 - 修复版
 # 作者: 沙龙新加坡
 
 # 设置颜色
@@ -19,6 +19,7 @@ fi
 
 echo -e "${BLUE}====================================${NC}"
 echo -e "${BLUE}  Telegram 群组监控转发工具安装器  ${NC}"
+echo -e "${BLUE}           修复版 v2.0             ${NC}"
 echo -e "${BLUE}====================================${NC}"
 echo ""
 
@@ -31,20 +32,83 @@ cd $WORK_DIR
 # 安装依赖
 echo -e "${YELLOW}安装系统依赖...${NC}"
 apt update
-apt install -y python3-pip python3-full
+apt install -y python3-pip python3-venv python3-full
+
+# 创建虚拟环境
+echo -e "${YELLOW}创建Python虚拟环境...${NC}"
+python3 -m venv telegram_env
+source telegram_env/bin/activate
 
 echo -e "${YELLOW}安装 Python 依赖...${NC}"
-pip3 install --break-system-packages --upgrade telethon python-telegram-bot
+pip install --upgrade pip
+pip install telethon python-telegram-bot
+
+# 创建 README.md
+echo -e "${YELLOW}创建 README.md${NC}"
+cat > $WORK_DIR/README.md << 'EOF'
+# Telegram 群组监控转发工具
+
+这是一个基于 Telethon 和 Python-Telegram-Bot 的 Telegram 群组监控和消息转发工具。它能够监控指定的群组或频道，根据关键词过滤消息，并将匹配的消息转发到指定目标。
+
+## 功能特点
+
+- 监控多个群组和频道
+- 基于关键词过滤消息
+- 支持多个转发目标
+- 提供 Telegram Bot 管理界面
+- 用户权限白名单控制
+- 系统服务自动启动
+- 显示消息来源信息
+
+## 使用说明
+
+### Bot 命令
+
+- `/addkw <关键词>` - 添加关键词
+- `/delkw <关键词>` - 删除关键词
+- `/addgroup <群组ID>` - 添加转发目标
+- `/delgroup <群组ID>` - 删除目标
+- `/addwatch <群组ID或用户名>` - 添加监听群组
+- `/delwatch <群组ID或用户名>` - 删除监听群组
+- `/allow <用户ID>` - 添加白名单（仅OWNER）
+- `/unallow <用户ID>` - 移除白名单（仅OWNER）
+- `/show` - 显示当前配置
+- `/help` - 帮助菜单
+
+## 注意事项
+
+- 首次运行需要进行 Telegram 登录认证
+- 使用个人账号进行自动化操作需谨慎，避免频繁操作导致账号被限制
+- 确保配置文件中的白名单至少包含一个管理员ID
+EOF
+
+# 创建配置文件模板
+echo -e "${YELLOW}创建配置文件模板...${NC}"
+cat > $WORK_DIR/config.example.json << 'EOF'
+{
+  "api_id": "YOUR_API_ID",
+  "api_hash": "YOUR_API_HASH",
+  "bot_token": "YOUR_BOT_TOKEN",
+  "target_ids": [-1002243984935, 165067365],
+  "keywords": ["example", "keyword1", "keyword2"],
+  "watch_ids": ["channelname", "groupname"],
+  "whitelist": [123456789]
+}
+EOF
 
 # 创建带来源信息的 channel_forwarder.py
 echo -e "${YELLOW}创建 channel_forwarder.py (带来源信息)${NC}"
 cat > $WORK_DIR/channel_forwarder.py << 'EOF'
 #!/usr/bin/env python3
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'telegram_env/lib/python3.11/site-packages'))
+
 from telethon import TelegramClient, events
 from datetime import datetime
 import json
-import os
-import sys
+import asyncio
+import signal
 
 CONFIG_FILE = 'config.json'
 
@@ -60,113 +124,154 @@ def load_config():
         print(f"错误: 配置文件 {CONFIG_FILE} 格式不正确")
         sys.exit(1)
 
-# 加载配置
-config = load_config()
+# 全局变量
+client = None
+running = True
 
-# 从配置文件获取API凭据
-api_id = config.get('api_id')
-api_hash = config.get('api_hash')
+def signal_handler(signum, frame):
+    global running, client
+    print("\n收到停止信号，正在优雅关闭...")
+    running = False
+    if client and client.is_connected():
+        asyncio.create_task(client.disconnect())
 
-if not api_id or not api_hash:
-    print("错误: 请在配置文件中设置有效的 api_id 和 api_hash")
-    print("您可以从 https://my.telegram.org/apps 获取这些信息")
-    sys.exit(1)
+# 注册信号处理器
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
 
-# 创建客户端实例
-client = TelegramClient('channel_forward_session', api_id, api_hash)
-
-@client.on(events.NewMessage)
-async def handler(event):
-    # 每次处理消息时重新加载配置，以便实时更新关键词等
+async def main():
+    global client, running
+    
+    # 加载配置
     config = load_config()
     
-    # 获取消息文本
-    msg = event.message.message
-    if not msg:
-        return
+    # 从配置文件获取API凭据
+    api_id = config.get('api_id')
+    api_hash = config.get('api_hash')
     
-    # 获取来源信息
-    from_chat = getattr(event.chat, 'username', None) or str(getattr(event, 'chat_id', ''))
+    if not api_id or not api_hash:
+        print("错误: 请在配置文件中设置有效的 api_id 和 api_hash")
+        print("您可以从 https://my.telegram.org/apps 获取这些信息")
+        sys.exit(1)
     
-    # 检查是否为监控目标
-    if from_chat not in config["watch_ids"] and str(event.chat_id) not in config["watch_ids"]:
-        return
+    # 创建客户端实例
+    client = TelegramClient('channel_forward_session', api_id, api_hash)
     
-    # 检查关键词
-    for keyword in config["keywords"]:
-        if keyword.lower() in msg.lower():
-            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 命中关键词: {keyword}")
-            print(f"来源: {from_chat}")
-            print(f"消息内容: {msg[:100]}...")  # 只显示消息前100个字符
+    @client.on(events.NewMessage)
+    async def handler(event):
+        if not running:
+            return
             
-            # 获取详细的来源信息
-            try:
-                chat_entity = await client.get_entity(event.chat_id)
-                
-                # 构建来源信息
-                if hasattr(chat_entity, 'username') and chat_entity.username:
-                    source_info = f"@{chat_entity.username}"
-                    if hasattr(chat_entity, 'title'):
-                        source_info += f" ({chat_entity.title})"
-                elif hasattr(chat_entity, 'title'):
-                    source_info = chat_entity.title
-                else:
-                    source_info = f"群组ID: {event.chat_id}"
-                
-                # 获取发送者信息
-                sender_info = ""
-                if event.sender:
-                    if hasattr(event.sender, 'username') and event.sender.username:
-                        sender_info = f"@{event.sender.username}"
-                    elif hasattr(event.sender, 'first_name'):
-                        sender_info = event.sender.first_name
-                        if hasattr(event.sender, 'last_name') and event.sender.last_name:
-                            sender_info += f" {event.sender.last_name}"
-                    else:
-                        sender_info = f"用户ID: {event.sender_id}"
-                
-                # 构建带来源信息的消息
-                source_header = f"📢 消息来源: {source_info}"
-                if sender_info:
-                    source_header += f"\n👤 发送者: {sender_info}"
-                source_header += f"\n🕐 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-                source_header += f"\n🔑 匹配关键词: {keyword}"
-                source_header += "\n" + "─" * 30 + "\n"
-                
-                # 转发到所有目标
-                for target in config["target_ids"]:
+        try:
+            # 每次处理消息时重新加载配置，以便实时更新关键词等
+            config = load_config()
+            
+            # 获取消息文本
+            msg = event.message.message
+            if not msg:
+                return
+            
+            # 获取来源信息
+            from_chat = getattr(event.chat, 'username', None) or str(getattr(event, 'chat_id', ''))
+            
+            # 检查是否为监控目标
+            if from_chat not in config["watch_ids"] and str(event.chat_id) not in config["watch_ids"]:
+                return
+            
+            # 检查关键词
+            for keyword in config["keywords"]:
+                if keyword.lower() in msg.lower():
+                    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 命中关键词: {keyword}")
+                    print(f"来源: {from_chat}")
+                    print(f"消息内容: {msg[:100]}...")  # 只显示消息前100个字符
+                    
+                    # 获取详细的来源信息
                     try:
-                        # 先发送来源信息
-                        await client.send_message(target, source_header)
-                        # 再转发原始消息
-                        await client.forward_messages(target, event.message)
-                        print(f"✅ 成功转发到 {target} (包含来源信息)")
-                    except Exception as e:
-                        print(f"❌ 转发到 {target} 失败: {e}")
+                        chat_entity = await client.get_entity(event.chat_id)
                         
-            except Exception as e:
-                print(f"❌ 获取来源信息失败: {e}")
-                # 如果获取详细信息失败，使用简单的来源信息
-                simple_source = f"📢 消息来源: {from_chat}\n🕐 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n🔑 匹配关键词: {keyword}\n" + "─" * 30 + "\n"
-                
-                for target in config["target_ids"]:
-                    try:
-                        await client.send_message(target, simple_source)
-                        await client.forward_messages(target, event.message)
-                        print(f"✅ 成功转发到 {target} (简单来源信息)")
+                        # 构建来源信息
+                        if hasattr(chat_entity, 'username') and chat_entity.username:
+                            source_info = f"@{chat_entity.username}"
+                            if hasattr(chat_entity, 'title'):
+                                source_info += f" ({chat_entity.title})"
+                        elif hasattr(chat_entity, 'title'):
+                            source_info = chat_entity.title
+                        else:
+                            source_info = f"群组ID: {event.chat_id}"
+                        
+                        # 获取发送者信息
+                        sender_info = ""
+                        if event.sender:
+                            if hasattr(event.sender, 'username') and event.sender.username:
+                                sender_info = f"@{event.sender.username}"
+                            elif hasattr(event.sender, 'first_name'):
+                                sender_info = event.sender.first_name
+                                if hasattr(event.sender, 'last_name') and event.sender.last_name:
+                                    sender_info += f" {event.sender.last_name}"
+                            else:
+                                sender_info = f"用户ID: {event.sender_id}"
+                        
+                        # 构建带来源信息的消息
+                        source_header = f"📢 消息来源: {source_info}"
+                        if sender_info:
+                            source_header += f"\n👤 发送者: {sender_info}"
+                        source_header += f"\n🕐 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                        source_header += f"\n🔑 匹配关键词: {keyword}"
+                        source_header += "\n" + "─" * 30 + "\n"
+                        
+                        # 转发到所有目标
+                        for target in config["target_ids"]:
+                            try:
+                                # 先发送来源信息
+                                await client.send_message(target, source_header)
+                                # 再转发原始消息
+                                await client.forward_messages(target, event.message)
+                                print(f"✅ 成功转发到 {target} (包含来源信息)")
+                            except Exception as e:
+                                print(f"❌ 转发到 {target} 失败: {e}")
+                                
                     except Exception as e:
-                        print(f"❌ 转发到 {target} 失败: {e}")
+                        print(f"❌ 获取来源信息失败: {e}")
+                        # 如果获取详细信息失败，使用简单的来源信息
+                        simple_source = f"📢 消息来源: {from_chat}\n🕐 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n🔑 匹配关键词: {keyword}\n" + "─" * 30 + "\n"
+                        
+                        for target in config["target_ids"]:
+                            try:
+                                await client.send_message(target, simple_source)
+                                await client.forward_messages(target, event.message)
+                                print(f"✅ 成功转发到 {target} (简单来源信息)")
+                            except Exception as e:
+                                print(f"❌ 转发到 {target} 失败: {e}")
+                    
+                    break  # 匹配一个关键词就跳出循环
+                    
+        except Exception as e:
+            print(f"处理消息时发生错误: {e}")
+    
+    print(">>> 正在监听关键词转发 ...")
+    print(">>> 如果是首次运行，请按照提示完成 Telegram 登录")
+    print(">>> 按 Ctrl+C 可停止运行")
+    
+    try:
+        await client.start()
+        print("✅ 客户端启动成功，开始监听...")
+        
+        # 保持运行
+        while running:
+            await asyncio.sleep(1)
             
-            break  # 匹配一个关键词就跳出循环
-
-print(">>> 正在监听关键词转发 ...")
-print(">>> 如果是首次运行，请按照提示完成 Telegram 登录")
-print(">>> 按 Ctrl+C 可停止运行")
+    except KeyboardInterrupt:
+        print("\n收到键盘中断信号")
+    except Exception as e:
+        print(f"发生错误: {e}")
+    finally:
+        if client and client.is_connected():
+            await client.disconnect()
+        print("程序已停止")
 
 if __name__ == "__main__":
     try:
-        client.start()
-        client.run_until_disconnected()
+        asyncio.run(main())
     except KeyboardInterrupt:
         print("\n程序已停止")
         sys.exit(0)
@@ -179,11 +284,14 @@ EOF
 echo -e "${YELLOW}创建 bot_manager.py${NC}"
 cat > $WORK_DIR/bot_manager.py << 'EOF'
 #!/usr/bin/env python3
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'telegram_env/lib/python3.11/site-packages'))
+
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 import json
 import logging
-import sys
 
 CONFIG_FILE = 'config.json'
 
@@ -430,10 +538,141 @@ if __name__ == '__main__':
     main()
 EOF
 
+# 创建登录助手
+echo -e "${YELLOW}创建登录助手 login_helper.py${NC}"
+cat > $WORK_DIR/login_helper.py << 'EOF'
+#!/usr/bin/env python3
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'telegram_env/lib/python3.11/site-packages'))
+
+import asyncio
+from telethon import TelegramClient
+import json
+
+CONFIG_FILE = 'config.json'
+
+def load_config():
+    try:
+        with open(CONFIG_FILE, 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        print(f"错误: 未找到配置文件 {CONFIG_FILE}")
+        sys.exit(1)
+    except json.JSONDecodeError:
+        print(f"错误: 配置文件 {CONFIG_FILE} 格式不正确")
+        sys.exit(1)
+
+async def login_telegram():
+    config = load_config()
+    
+    api_id = config.get('api_id')
+    api_hash = config.get('api_hash')
+    
+    if not api_id or not api_hash:
+        print("错误: 请在配置文件中设置有效的 api_id 和 api_hash")
+        sys.exit(1)
+    
+    print("开始Telegram登录过程...")
+    print("创建客户端连接...")
+    
+    client = TelegramClient('channel_forward_session', api_id, api_hash)
+    
+    try:
+        print("正在连接到Telegram...")
+        await client.connect()
+        
+        if not await client.is_user_authorized():
+            print("需要进行用户认证")
+            
+            # 请求手机号
+            phone = input("请输入您的手机号码（包括国家代码，如 +8613812345678）: ")
+            
+            try:
+                sent_code = await client.send_code_request(phone)
+                print(f"验证码已发送到 {phone}")
+                
+                # 请求验证码
+                code = input("请输入验证码: ")
+                
+                try:
+                    await client.sign_in(phone, code)
+                    print("✅ 登录成功！")
+                    
+                except Exception as e:
+                    if "Two-steps verification" in str(e) or "password" in str(e).lower():
+                        password = input("请输入两步验证密码: ")
+                        await client.sign_in(password=password)
+                        print("✅ 登录成功！")
+                    else:
+                        print(f"登录失败: {e}")
+                        return False
+                        
+            except Exception as e:
+                print(f"发送验证码失败: {e}")
+                return False
+        else:
+            print("✅ 已经登录！")
+        
+        # 测试连接
+        me = await client.get_me()
+        print(f"当前登录用户: {me.first_name} (@{me.username})")
+        
+        return True
+        
+    except Exception as e:
+        print(f"连接失败: {e}")
+        return False
+    finally:
+        await client.disconnect()
+
+if __name__ == "__main__":
+    try:
+        result = asyncio.run(login_telegram())
+        if result:
+            print("\n🎉 登录完成！现在可以启动服务了。")
+            print("\n运行以下命令启动服务:")
+            print("systemctl start channel_forwarder")
+            print("systemctl start bot_manager")
+        else:
+            print("\n❌ 登录失败，请检查配置或网络连接")
+    except KeyboardInterrupt:
+        print("\n操作已取消")
+    except Exception as e:
+        print(f"\n发生错误: {e}")
+EOF
+
+# 创建启动脚本
+echo -e "${YELLOW}创建启动脚本${NC}"
+cat > $WORK_DIR/start_forwarder.sh << 'EOF'
+#!/bin/bash
+cd /opt/telegram-monitor
+source telegram_env/bin/activate
+python3 channel_forwarder.py
+EOF
+
+cat > $WORK_DIR/start_bot_manager.sh << 'EOF'
+#!/bin/bash
+cd /opt/telegram-monitor
+source telegram_env/bin/activate
+python3 bot_manager.py
+EOF
+
+cat > $WORK_DIR/start_login_helper.sh << 'EOF'
+#!/bin/bash
+cd /opt/telegram-monitor
+source telegram_env/bin/activate
+python3 login_helper.py
+EOF
+
 # 设置权限
 echo -e "${YELLOW}设置文件权限...${NC}"
 chmod +x $WORK_DIR/channel_forwarder.py
 chmod +x $WORK_DIR/bot_manager.py
+chmod +x $WORK_DIR/login_helper.py
+chmod +x $WORK_DIR/start_forwarder.sh
+chmod +x $WORK_DIR/start_bot_manager.sh
+chmod +x $WORK_DIR/start_login_helper.sh
 
 # 创建服务文件
 echo -e "${YELLOW}创建系统服务...${NC}"
@@ -445,11 +684,12 @@ Description=Telegram Channel Forwarder Service
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/python3 ${WORK_DIR}/channel_forwarder.py
+ExecStart=${WORK_DIR}/start_forwarder.sh
 WorkingDirectory=${WORK_DIR}
 Restart=always
-RestartSec=5
+RestartSec=10
 User=root
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 [Install]
 WantedBy=multi-user.target
@@ -462,11 +702,12 @@ Description=Telegram Bot Manager Service
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/python3 ${WORK_DIR}/bot_manager.py
+ExecStart=${WORK_DIR}/start_bot_manager.sh
 WorkingDirectory=${WORK_DIR}
 Restart=always
-RestartSec=5
+RestartSec=10
 User=root
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 [Install]
 WantedBy=multi-user.target
@@ -637,52 +878,61 @@ echo ""
 
 cd $WORK_DIR
 
-# 运行登录过程
-echo -e "${BLUE}开始登录过程...${NC}"
-python3 channel_forwarder.py &
-LOGIN_PID=$!
+# 运行登录助手
+echo -e "${BLUE}启动登录助手...${NC}"
+./start_login_helper.sh
 
+# 询问是否登录成功
 echo ""
-echo -e "${YELLOW}登录完成后，请按 Ctrl+C 停止程序${NC}"
-echo -e "${YELLOW}然后脚本将自动启动系统服务${NC}"
-echo ""
-
-# 等待用户停止程序
-wait $LOGIN_PID
-
-echo ""
-echo -e "${GREEN}开始启动系统服务...${NC}"
-
-# 启动服务
-echo -e "${YELLOW}启动转发服务...${NC}"
-systemctl start channel_forwarder
-sleep 2
-
-echo -e "${YELLOW}启动Bot管理服务...${NC}"
-systemctl start bot_manager
-sleep 2
-
-# 检查服务状态
-echo ""
-echo -e "${GREEN}检查服务状态:${NC}"
-echo -e "${BLUE}转发服务状态:${NC}"
-systemctl --no-pager status channel_forwarder
-
-echo ""
-echo -e "${BLUE}Bot管理服务状态:${NC}"
-systemctl --no-pager status bot_manager
+while true; do
+    read -p "登录是否成功？(y/n): " yn
+    case $yn in
+        [Yy]* ) 
+            echo -e "${GREEN}开始启动系统服务...${NC}"
+            
+            # 启动服务
+            echo -e "${YELLOW}启动转发服务...${NC}"
+            systemctl start channel_forwarder
+            sleep 3
+            
+            echo -e "${YELLOW}启动Bot管理服务...${NC}"
+            systemctl start bot_manager
+            sleep 3
+            
+            # 检查服务状态
+            echo ""
+            echo -e "${GREEN}检查服务状态:${NC}"
+            echo -e "${BLUE}转发服务状态:${NC}"
+            systemctl --no-pager status channel_forwarder
+            
+            echo ""
+            echo -e "${BLUE}Bot管理服务状态:${NC}"
+            systemctl --no-pager status bot_manager
+            
+            break
+            ;;
+        [Nn]* ) 
+            echo -e "${RED}请重新运行登录助手:${NC}"
+            echo -e "${BLUE}cd ${WORK_DIR} && ./start_login_helper.sh${NC}"
+            break
+            ;;
+        * ) echo "请输入 y 或 n";;
+    esac
+done
 
 echo ""
 echo -e "${GREEN}✅ 安装和配置完成！${NC}"
 echo ""
-echo -e "${YELLOW}下一步操作:${NC}"
-echo -e "${BLUE}1. 查看服务日志:${NC}"
-echo -e "   journalctl -u channel_forwarder -f"
-echo -e "   journalctl -u bot_manager -f"
+echo -e "${YELLOW}常用命令:${NC}"
+echo -e "${BLUE}手动登录: ${NC}cd ${WORK_DIR} && ./start_login_helper.sh"
+echo -e "${BLUE}启动服务: ${NC}systemctl start channel_forwarder && systemctl start bot_manager"
+echo -e "${BLUE}停止服务: ${NC}systemctl stop channel_forwarder && systemctl stop bot_manager"
+echo -e "${BLUE}查看日志: ${NC}journalctl -u channel_forwarder -f"
+echo -e "${BLUE}重启服务: ${NC}systemctl restart channel_forwarder"
 echo ""
-echo -e "${BLUE}2. 使用您的Bot进行管理:${NC}"
-echo -e "   在Telegram中找到您的Bot，发送 /start 开始使用"
-echo -e "   发送 /help 查看所有可用命令"
+echo -e "${YELLOW}使用您的Bot进行管理:${NC}"
+echo -e "在Telegram中找到您的Bot，发送 /start 开始使用"
+echo -e "发送 /help 查看所有可用命令"
 echo ""
 echo -e "${GREEN}项目文件位置: ${WORK_DIR}${NC}"
 echo -e "${GREEN}配置文件: ${WORK_DIR}/config.json${NC}"
