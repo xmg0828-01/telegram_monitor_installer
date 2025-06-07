@@ -39,7 +39,7 @@ apt update
 apt install -y python3-pip
 
 echo -e “${YELLOW}安装 Python 依赖…${NC}”
-pip3 install –upgrade –break-system-packages telethon python-telegram-bot
+pip3 install –upgrade telethon python-telegram-bot
 
 # 创建 README.md
 
@@ -58,7 +58,6 @@ cat > $WORK_DIR/README.md << ‘EOF’
 - 提供 Telegram Bot 管理界面
 - 用户权限白名单控制
 - 系统服务自动启动
-- 显示转发消息来源信息
 
 ## 使用说明
 
@@ -105,7 +104,7 @@ cat > $WORK_DIR/config.example.json << ‘EOF’
 }
 EOF
 
-# 创建增强版 channel_forwarder.py (带来源信息)
+# 创建 channel_forwarder.py (增加来源信息)
 
 echo -e “${YELLOW}创建 channel_forwarder.py${NC}”
 cat > $WORK_DIR/channel_forwarder.py << ‘EOF’
@@ -148,31 +147,6 @@ sys.exit(1)
 
 client = TelegramClient(‘channel_forward_session’, api_id, api_hash)
 
-async def get_chat_info(chat):
-“”“获取群组/频道的详细信息”””
-chat_info = {
-‘id’: chat.id,
-‘title’: getattr(chat, ‘title’, ‘’),
-‘username’: getattr(chat, ‘username’, ‘’),
-‘type’: ‘unknown’
-}
-
-```
-# 判断聊天类型
-if hasattr(chat, 'megagroup') and chat.megagroup:
-    chat_info['type'] = '超级群组'
-elif hasattr(chat, 'broadcast') and chat.broadcast:
-    chat_info['type'] = '频道'
-elif hasattr(chat, 'gigagroup') and chat.gigagroup:
-    chat_info['type'] = '广播群组'
-elif getattr(chat, 'username', None):
-    chat_info['type'] = '群组/频道'
-else:
-    chat_info['type'] = '私聊群组'
-
-return chat_info
-```
-
 @client.on(events.NewMessage)
 async def handler(event):
 # 每次处理消息时重新加载配置，以便实时更新关键词等
@@ -184,53 +158,43 @@ msg = event.message.message
 if not msg:
     return
 
-# 获取聊天信息
-chat = await event.get_chat()
-chat_info = await get_chat_info(chat)
-
-# 构建来源标识
-source_identifier = chat_info['username'] or str(chat_info['id'])
+# 获取来源信息
+from_chat = getattr(event.chat, 'username', None) or str(getattr(event, 'chat_id', ''))
+chat_title = getattr(event.chat, 'title', '未知群组')
 
 # 检查是否为监控目标
-if source_identifier not in config["watch_ids"] and str(chat_info['id']) not in config["watch_ids"]:
+if from_chat not in config["watch_ids"] and str(event.chat_id) not in config["watch_ids"]:
     return
 
 # 检查关键词
-matched_keyword = None
 for keyword in config["keywords"]:
     if keyword.lower() in msg.lower():
-        matched_keyword = keyword
-        break
-
-if matched_keyword:
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 命中关键词: {matched_keyword}")
-    print(f"来源: {chat_info['title']} ({source_identifier}) - {chat_info['type']}")
-    print(f"消息内容: {msg[:100]}...")  # 只显示消息前100个字符
-    
-    # 构建带来源信息的转发消息
-    source_info = f"📍 来源: {chat_info['title'] or '未知群组'}"
-    if chat_info['username']:
-        source_info += f" (@{chat_info['username']})"
-    source_info += f"\n🏷️ 类型: {chat_info['type']}"
-    source_info += f"\n🔑 触发关键词: {matched_keyword}"
-    source_info += f"\n⏰ 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-    source_info += f"\n{'='*40}"
-    
-    # 转发到所有目标
-    for target in config["target_ids"]:
-        try:
-            # 先发送来源信息
-            await client.send_message(target, source_info)
-            
-            # 然后转发原消息
-            await client.forward_messages(target, event.message)
-            
-            print(f"✅ 成功转发到 {target} (包含来源信息)")
-        except Exception as e:
-            print(f"❌ 转发到 {target} 失败: {e}")
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 命中关键词: {keyword}")
+        print(f"来源: {chat_title} ({from_chat})")
+        print(f"消息内容: {msg[:100]}...")  # 只显示消息前100个字符
+        
+        # 构建来源信息
+        source_info = f"📍 来源群组: {chat_title}"
+        if from_chat and from_chat != str(event.chat_id):
+            source_info += f" (@{from_chat})"
+        source_info += f"\n🔑 触发关键词: {keyword}"
+        source_info += f"\n⏰ 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        source_info += f"\n" + "="*35
+        
+        # 转发到所有目标
+        for target in config["target_ids"]:
+            try:
+                # 先发送来源信息
+                await client.send_message(target, source_info)
+                # 然后转发原消息
+                await client.forward_messages(target, event.message)
+                print(f"✅ 成功转发到 {target} (含来源信息)")
+            except Exception as e:
+                print(f"❌ 转发到 {target} 失败: {e}")
+        break  # 匹配一个关键词就跳出循环
 ```
 
-print(”>>> 正在监听关键词转发 (增强版 - 包含来源信息) …”)
+print(”>>> 正在监听关键词转发 …”)
 print(”>>> 如果是首次运行，请按照提示完成 Telegram 登录”)
 print(”>>> 按 Ctrl+C 可停止运行”)
 
@@ -751,4 +715,4 @@ echo -e “  ${BLUE}systemctl status bot_manager${NC}”
 echo “”
 echo -e “${GREEN}项目文件位置: ${WORK_DIR}${NC}”
 echo “”
-echo -e “${GREEN}增强功能: 转发消息时会显示来源群组信息! 🎯${NC}”
+echo -e “${GREEN}新增功能: 转发消息时会显示来源群组信息! 🎯${NC}”
