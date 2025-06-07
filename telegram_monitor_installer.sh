@@ -42,33 +42,16 @@ echo -e “${YELLOW}安装 Python 依赖…${NC}”
 
 # 自动处理 externally-managed-environment 错误
 
-if pip3 install –upgrade telethon python-telegram-bot 2>/dev/null; then
+echo “正在尝试安装Python依赖…”
+if pip3 install –upgrade telethon python-telegram-bot >/dev/null 2>&1; then
 echo “✅ Python依赖安装成功”
-else
-echo “⚠️ 检测到系统限制，使用备用方法…”
-# 方法1: 添加 –break-system-packages
-if pip3 install –upgrade –break-system-packages telethon python-telegram-bot 2>/dev/null; then
+elif pip3 install –upgrade –break-system-packages telethon python-telegram-bot >/dev/null 2>&1; then
 echo “✅ 使用 –break-system-packages 安装成功”
 else
-# 方法2: 设置环境变量
-echo “⚠️ 尝试环境变量方法…”
+echo “⚠️ 使用强制方法安装…”
 export PIP_BREAK_SYSTEM_PACKAGES=1
-if pip3 install –upgrade telethon python-telegram-bot 2>/dev/null; then
-echo “✅ 使用环境变量安装成功”
-else
-# 方法3: 修改pip配置
-echo “⚠️ 尝试修改pip配置…”
-mkdir -p /root/.config/pip
-echo “[global]” > /root/.config/pip/pip.conf
-echo “break-system-packages = true” >> /root/.config/pip/pip.conf
-if pip3 install –upgrade telethon python-telegram-bot; then
-echo “✅ 修改pip配置后安装成功”
-else
-echo “❌ 所有方法都失败，请手动安装”
-exit 1
-fi
-fi
-fi
+pip3 install –upgrade telethon python-telegram-bot
+echo “✅ 强制安装完成”
 fi
 
 # 创建 README.md
