@@ -104,7 +104,7 @@ cat > $WORK_DIR/config.example.json << ‘EOF’
 }
 EOF
 
-# 创建 channel_forwarder.py (增加来源信息)
+# 创建 channel_forwarder.py（增加消息来源显示）
 
 echo -e “${YELLOW}创建 channel_forwarder.py${NC}”
 cat > $WORK_DIR/channel_forwarder.py << ‘EOF’
@@ -715,4 +715,4 @@ echo -e “  ${BLUE}systemctl status bot_manager${NC}”
 echo “”
 echo -e “${GREEN}项目文件位置: ${WORK_DIR}${NC}”
 echo “”
-echo -e “${GREEN}新增功能: 转发消息时会显示来源群组信息! 🎯${NC}”
+echo -e “${GREEN}🎯 新增功能: 转发消息时会显示来源群组信息！${NC}”
