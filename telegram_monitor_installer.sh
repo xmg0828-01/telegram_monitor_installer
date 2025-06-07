@@ -724,9 +724,9 @@ cat > $WORK_DIR/config.json << EOF
 }
 EOF
 
-# 显示完成信息
+# 显示配置摘要
 echo ""
-echo -e "${GREEN}✅ 安装和配置完成！${NC}"
+echo -e "${GREEN}✅ 配置文件已创建！${NC}"
 echo ""
 echo -e "${YELLOW}配置摘要:${NC}"
 echo -e "监控关键词: ${KEYWORDS_JSON}"
@@ -734,26 +734,61 @@ echo -e "监控源: ${WATCH_JSON}"
 echo -e "转发目标: ${TARGET_JSON}"
 echo -e "管理员ID: ${ADMIN_ID}"
 echo ""
+
+# 现在进行Telegram登录
+echo -e "${GREEN}现在进行Telegram账号登录...${NC}"
+echo -e "${YELLOW}请按照提示完成 Telegram 登录认证${NC}"
+echo ""
+
+cd $WORK_DIR
+
+# 运行登录过程
+python3 channel_forwarder.py &
+LOGIN_PID=$!
+
+# 等待用户完成登录或手动停止
+echo ""
+echo -e "${YELLOW}登录完成后，请按 Ctrl+C 停止程序${NC}"
+echo -e "${YELLOW}然后脚本将自动启动系统服务${NC}"
+echo ""
+
+# 等待用户停止程序
+wait $LOGIN_PID
+
+echo ""
+echo -e "${GREEN}开始启动系统服务...${NC}"
+
+# 启动服务
+echo -e "${YELLOW}启动转发服务...${NC}"
+systemctl start channel_forwarder
+sleep 2
+
+echo -e "${YELLOW}启动Bot管理服务...${NC}"
+systemctl start bot_manager
+sleep 2
+
+# 检查服务状态
+echo ""
+echo -e "${GREEN}检查服务状态:${NC}"
+echo -e "${BLUE}转发服务状态:${NC}"
+systemctl --no-pager status channel_forwarder
+
+echo ""
+echo -e "${BLUE}Bot管理服务状态:${NC}"
+systemctl --no-pager status bot_manager
+
+echo ""
+echo -e "${GREEN}✅ 安装和配置完成！${NC}"
+echo ""
 echo -e "${YELLOW}下一步操作:${NC}"
-echo -e "${BLUE}1. 首次登录 Telegram 账号:${NC}"
-echo -e "   cd ${WORK_DIR} && python3 channel_forwarder.py"
-echo ""
-echo -e "${BLUE}2. 登录成功后启动服务:${NC}"
-echo -e "   systemctl start channel_forwarder"
-echo -e "   systemctl start bot_manager"
-echo ""
-echo -e "${BLUE}3. 查看服务状态:${NC}"
-echo -e "   systemctl status channel_forwarder"
-echo -e "   systemctl status bot_manager"
-echo ""
-echo -e "${BLUE}4. 查看服务日志:${NC}"
+echo -e "${BLUE}1. 查看服务日志:${NC}"
 echo -e "   journalctl -u channel_forwarder -f"
 echo -e "   journalctl -u bot_manager -f"
 echo ""
+echo -e "${BLUE}2. 使用您的Bot进行管理:${NC}"
+echo -e "   在Telegram中找到您的Bot，发送 /start 开始使用"
+echo -e "   发送 /help 查看所有可用命令"
+echo ""
 echo -e "${GREEN}项目文件位置: ${WORK_DIR}${NC}"
 echo -e "${GREEN}配置文件: ${WORK_DIR}/config.json${NC}"
-echo ""
-echo -e "${YELLOW}使用您的Bot进行管理:${NC}"
-echo -e "在Telegram中找到您的Bot，发送 /start 开始使用"
-echo -e "发送 /help 查看所有可用命令"
 echo ""
